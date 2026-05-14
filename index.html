@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Counter Pro Max - Arvind Kumar Shukla</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+        
+        :root { --primary: #6366f1; }
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background: #f8fafc; 
+            touch-action: manipulation; 
+            overscroll-behavior-y: contain;
+        }
+
+        .active-voice { background: #ef4444 !important; animation: pulse 2s infinite; color: white !important; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+        
+        .card { transition: all 0.2s ease; border: 1px solid #e2e8f0; background: white; border-radius: 1.25rem; }
+        .active-group { border: 2px solid #6366f1 !important; background: #f5f3ff; }
+        
+        .small-btn { padding: 5px 10px; font-size: 9px; border-radius: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; transition: transform 0.1s; }
+        .small-btn:active { transform: scale(0.95); }
+        
+        .chip { display: inline-flex; align-items: center; background: #f1f5f9; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; margin: 2px; border: 1px solid #e2e8f0; }
+        
+        input::-webkit-calendar-picker-indicator { display: none !important; }
+
+        .glass-header {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; padding: 0; }
+            .card { border: 1px solid #cbd5e1; break-inside: avoid; border-radius: 12px; }
+        }
+    </style>
+</head>
+<body class="pb-40">
+
+    <!-- TOP DASHBOARD -->
+    <div class="sticky top-0 z-50 glass-header border-b border-slate-200 p-3 shadow-sm no-print">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <div>
+                <p class="text-[9px] font-black text-indigo-500 uppercase tracking-widest leading-none mb-1">Grand Total</p>
+                <div id="grandTotal" class="text-2xl font-800 text-slate-900 leading-none tabular-nums">0</div>
+            </div>
+            <div class="flex gap-1">
+                <button id="voiceBtn" onclick="toggleVoice()" class="small-btn bg-slate-100 text-slate-600 border border-slate-200">Voice Off</button>
+                <button onclick="copyData()" class="small-btn bg-indigo-600 text-white shadow-sm">Copy</button>
+                <button onclick="shareData()" class="small-btn bg-emerald-600 text-white shadow-sm">Share</button>
+                <button onclick="addGroup()" class="small-btn bg-slate-900 text-white">+ Group</button>
+            </div>
+        </div>
+        <div id="voiceStatus" class="max-w-md mx-auto text-[9px] font-black text-center mt-2 text-indigo-400 uppercase tracking-widest hidden">
+            <span class="inline-block w-1.5 h-1.5 bg-red-500 rounded-full animate-ping mr-1"></span>
+            Always Listening... Speak numbers or category names
+        </div>
+    </div>
+
+    <div class="max-w-md mx-auto p-5">
+        <!-- TIME & DATE -->
+        <div class="flex justify-between items-center mb-6 px-1">
+            <div id="clock" class="text-[11px] font-800 text-slate-400 tabular-nums">00:00:00</div>
+            <div id="date" class="text-[11px] font-800 text-slate-400 uppercase tracking-wider">Loading...</div>
+        </div>
+
+        <!-- GROUPS -->
+        <div id="groupsList" class="space-y-4"></div>
+
+        <!-- FOOTER INFO -->
+        <div class="mt-10 space-y-6">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+                    <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">Counted By</label>
+                    <input id="countedBy" list="nameList" onchange="savePersonnel()" placeholder="Name" class="w-full text-xs font-bold outline-none bg-transparent">
+                </div>
+                <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+                    <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">Checked By</label>
+                    <input id="checkedBy" list="nameList" onchange="savePersonnel()" placeholder="Name" class="w-full text-xs font-bold outline-none bg-transparent">
+                </div>
+            </div>
+            <datalist id="nameList"></datalist>
+
+            <!-- POSITIVE QUOTE -->
+            <div id="quoteArea" class="p-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] text-white text-center shadow-xl shadow-indigo-100 no-print">
+                <p id="quoteBox" class="text-sm font-bold italic leading-relaxed">"Great things never come from comfort zones."</p>
+                <div class="mt-3 text-[9px] font-black uppercase tracking-[0.3em] opacity-60">- Daily Wisdom</div>
+            </div>
+
+            <div class="text-center">
+                <p class="text-[9px] text-slate-300 font-bold uppercase tracking-widest leading-loose">
+                    Arvind Kumar Shukla • 9616417485<br>
+                    <button onclick="resetApp()" class="text-red-300 mt-2 hover:text-red-500 transition-colors">Reset Entire App</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-2xl opacity-0 transition-opacity pointer-events-none z-[100]">
+        Done!
+    </div>
+
+    <script>
+        // OFFLINE SUPPORT
+        if ('serviceWorker' in navigator) {
+            const sw = `const c='c-v3';self.addEventListener('install',e=>e.waitUntil(caches.open(c).then(ca=>ca.addAll(['./']))));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));`;
+            const blob = new Blob([sw], { type: 'text/javascript' });
+            navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+        }
+
+        let state = {
+            groups: [
+                { id: 1, name: "Male", items: [] },
+                { id: 2, name: "Female", items: [] },
+                { id: 3, name: "Shoecare", items: [] },
+                { id: 4, name: "Shoehorn", items: [] },
+                { id: 5, name: "Prop", items: [] },
+                { id: 6, name: "Bag", items: [] },
+                { id: 7, name: "Belt", items: [] },
+                { id: 8, name: "Shoetree", items: [] }
+            ],
+            activeIdx: 0,
+            isVoice: false,
+            savedNames: ["Arvind Kumar Shukla"],
+            countedBy: "",
+            checkedBy: ""
+        };
+
+        const quotes = [
+            "Your hard work today is your success tomorrow.",
+            "Accuracy is the twin brother of honesty.",
+            "Focus on being productive, not busy.",
+            "Small steps lead to big results.",
+            "Success is the sum of small efforts repeated daily.",
+            "Believe you can and you're halfway there.",
+            "Quality is not an act, it is a habit.",
+            "Everything is possible for those who believe."
+        ];
+
+        const wordToNum = { "zero":0, "one":1, "to":2, "two":2, "too":2, "three":3, "tree":3, "the":3, "four":4, "for":4, "five":5, "six":6, "seven":7, "eight":8, "ate":8, "nine":9, "ten":10 };
+
+        function init() {
+            // Load previously saved state from localStorage to memorize last counting
+            const saved = localStorage.getItem('arvind_cpm_v7');
+            if (saved) {
+                try {
+                    state = JSON.parse(saved);
+                    showToast("Restored last session");
+                } catch(e) {
+                    console.error("Failed to load saved state", e);
+                }
+            }
+            
+            updateClock();
+            document.getElementById('quoteBox').innerText = `"${quotes[Math.floor(Math.random() * quotes.length)]}"`;
+            document.getElementById('date').innerText = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            
+            render();
+            updateNameList();
+        }
+
+        function save() {
+            // Save current state to localStorage every time an action is performed
+            localStorage.setItem('arvind_cpm_v7', JSON.stringify(state));
+            updateNameList();
+        }
+
+        function savePersonnel() {
+            state.countedBy = document.getElementById('countedBy').value.trim();
+            state.checkedBy = document.getElementById('checkedBy').value.trim();
+            [state.countedBy, state.checkedBy].forEach(n => {
+                if(n && !state.savedNames.includes(n)) state.savedNames.push(n);
+            });
+            save();
+        }
+
+        function render() {
+            const list = document.getElementById('groupsList');
+            list.innerHTML = "";
+            let grandTotal = 0;
+
+            state.groups.forEach((g, idx) => {
+                const subtotal = g.items.reduce((a, b) => a + b, 0);
+                grandTotal += subtotal;
+
+                const el = document.createElement('div');
+                el.className = `card p-4 ${state.activeIdx === idx ? 'active-group' : ''}`;
+                el.onclick = () => { if(state.activeIdx !== idx) { state.activeIdx = idx; render(); }};
+
+                el.innerHTML = `
+                    <div class="flex justify-between items-center mb-3">
+                        <input value="${g.name}" onchange="renameGroup(${idx}, this.value)" class="bg-transparent font-800 text-sm outline-none w-2/3 text-slate-800">
+                        <div class="text-indigo-600 font-800 text-base tabular-nums">${subtotal}</div>
+                    </div>
+                    <div class="flex gap-2 mb-3">
+                        <input id="in-${idx}" type="number" placeholder="Value" onkeydown="if(event.key==='Enter') manualAdd(${idx})" class="w-full text-xs font-bold p-2.5 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none">
+                        <button onclick="manualAdd(${idx})" class="small-btn bg-indigo-500 text-white">Add</button>
+                        <button onclick="quickPlusOne(${idx})" class="small-btn bg-slate-900 text-white shadow-sm">+1</button>
+                    </div>
+                    <div class="flex flex-wrap min-h-[24px]">
+                        ${g.items.map((num, i) => `
+                            <div class="chip">
+                                <span class="text-[8px] text-slate-400 mr-1.5 font-normal">#${i+1}</span>
+                                ${num}
+                                <span onclick="removeItem(${idx}, ${i})" class="ml-1.5 text-slate-300 hover:text-red-500 cursor-pointer text-lg">×</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="flex justify-between items-center mt-3 pt-3 border-t border-slate-100">
+                         <button onclick="undo(${idx})" class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Undo</button>
+                         <button onclick="removeGroup(${idx})" class="text-[9px] font-black text-red-300 uppercase tracking-widest">Delete</button>
+                    </div>
+                `;
+                list.appendChild(el);
+            });
+
+            document.getElementById('grandTotal').innerText = grandTotal;
+            document.getElementById('countedBy').value = state.countedBy || "";
+            document.getElementById('checkedBy').value = state.checkedBy || "";
+        }
+
+        // ACTIONS
+        function renameGroup(idx, val) { state.groups[idx].name = val || "Untitled"; save(); }
+        function manualAdd(idx) {
+            const input = document.getElementById(`in-${idx}`);
+            const val = parseInt(input.value);
+            if (!isNaN(val)) { state.groups[idx].items.push(val); input.value = ""; save(); render(); }
+        }
+        function quickPlusOne(idx) { state.groups[idx].items.push(1); save(); render(); }
+        function undo(idx) { state.groups[idx].items.pop(); save(); render(); }
+        function removeItem(gIdx, iIdx) { state.groups[gIdx].items.splice(iIdx, 1); save(); render(); }
+        function removeGroup(idx) { if(confirm("Delete this entire group?")) { state.groups.splice(idx, 1); save(); render(); } }
+        function addGroup() { state.groups.push({ id: Date.now(), name: "New Category", items: [] }); state.activeIdx = state.groups.length - 1; save(); render(); }
+        
+        function updateNameList() {
+            const dl = document.getElementById('nameList');
+            dl.innerHTML = state.savedNames.map(n => `<option value="${n}">`).join('');
+        }
+
+        function updateClock() {
+            setInterval(() => {
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-US', { hour12: false });
+            }, 1000);
+        }
+
+        // VOICE ENGINE
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'en-IN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onresult = (e) => {
+                const text = e.results[0][0].transcript.toLowerCase();
+                processVoice(text);
+            };
+
+            recognition.onend = () => { if (state.isVoice) try { recognition.start(); } catch(err) {} };
+            recognition.onerror = () => { if (state.isVoice) setTimeout(() => { try{recognition.start()}catch(e){} }, 300); };
+        }
+
+        function toggleVoice() {
+            state.isVoice = !state.isVoice;
+            const btn = document.getElementById('voiceBtn');
+            const status = document.getElementById('voiceStatus');
+            
+            if (state.isVoice) {
+                try { recognition.start(); } catch(e) {}
+                btn.innerText = "Voice On";
+                btn.classList.add('active-voice');
+                status.classList.remove('hidden');
+                speak("Voice active");
+            } else {
+                recognition.stop();
+                btn.innerText = "Voice Off";
+                btn.classList.remove('active-voice');
+                status.classList.add('hidden');
+            }
+        }
+
+        function processVoice(text) {
+            state.groups.forEach((g, idx) => {
+                if (text === g.name.toLowerCase() || text.includes("switch to " + g.name.toLowerCase())) {
+                    state.activeIdx = idx;
+                    speak("Target " + g.name);
+                    render();
+                    return;
+                }
+            });
+
+            if (text.includes("undo") || text.includes("delete last")) {
+                state.groups[state.activeIdx].items.pop();
+                speak("Removed");
+                save(); render();
+                return;
+            }
+
+            let found = false;
+            const words = text.split(/[\s,]+/);
+            words.forEach(w => {
+                let n = parseInt(w);
+                if (isNaN(n)) n = wordToNum[w];
+                if (n !== undefined) {
+                    state.groups[state.activeIdx].items.push(n);
+                    found = true;
+                }
+            });
+
+            if (found) {
+                const total = state.groups[state.activeIdx].items.reduce((a,b)=>a+b,0);
+                speak("Added. Total " + total);
+                save(); render();
+            }
+        }
+
+        function speak(msg) {
+            const utter = new SpeechSynthesisUtterance(msg);
+            utter.rate = 1.4;
+            window.speechSynthesis.speak(utter);
+        }
+
+        function getReportText() {
+            let report = `COUNTER REPORT - ${new Date().toLocaleDateString()}\n\n`;
+            state.groups.forEach(g => {
+                const total = g.items.reduce((a,b)=>a+b,0);
+                report += `${g.name.toUpperCase()}: ${g.items.join("+") || 0} = ${total}\n`;
+            });
+            report += `\nGRAND TOTAL: ${document.getElementById('grandTotal').innerText}\n`;
+            report += `BY: ${state.countedBy || 'N/A'} | CHECK: ${state.checkedBy || 'N/A'}\n\n`;
+            
+            // Add the current quote to the shared report
+            const currentQuote = document.getElementById('quoteBox').innerText;
+            report += `Daily Wisdom: ${currentQuote}`;
+            
+            return report;
+        }
+
+        function copyData() {
+            navigator.clipboard.writeText(getReportText()).then(() => showToast("Copied!"));
+        }
+
+        function shareData() {
+            const text = getReportText();
+            if (navigator.share) {
+                navigator.share({ title: 'Counter Report', text: text }).catch(()=>{});
+            } else {
+                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+            }
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.opacity = '1';
+            setTimeout(() => t.style.opacity = '0', 2000);
+        }
+
+        function resetApp() {
+            if(confirm("Wipe all data?")) {
+                localStorage.removeItem('arvind_cpm_v7');
+                location.reload();
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
