@@ -7,6 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Counter Pro Max - Arvind Kumar Shukla</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
         
@@ -37,76 +38,165 @@
             -webkit-backdrop-filter: blur(12px);
         }
 
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .nav-item { transition: all 0.2s; }
+        .nav-item.active { color: #4f46e5; }
+        .nav-item.active .nav-indicator { opacity: 1; transform: scale(1); }
+        .nav-indicator { opacity: 0; transform: scale(0.5); transition: all 0.2s; }
+
         @media print {
             .no-print { display: none !important; }
             body { background: white; padding: 0; }
             .card { border: 1px solid #cbd5e1; break-inside: avoid; border-radius: 12px; }
         }
+
+        .capturing-mode {
+            background-color: white !important;
+            padding-bottom: 2rem !important;
+        }
+        .capturing-mode .card {
+            border: 1px solid #e2e8f0;
+            box-shadow: none;
+            margin-bottom: 1rem;
+            break-inside: avoid;
+        }
+        .capturing-mode .hide-on-capture { display: none !important; }
     </style>
 </head>
-<body class="pb-40">
+<body id="mainBody" class="pb-24">
 
-    <!-- TOP DASHBOARD -->
-    <div class="sticky top-0 z-50 glass-header border-b border-slate-200 p-3 shadow-sm no-print">
+    <!-- CUSTOM MODAL (Replaces window.confirm) -->
+    <div id="customModal" class="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center p-4 opacity-0 transition-opacity duration-200">
+        <div class="bg-white rounded-[2rem] p-6 w-full max-w-sm shadow-2xl transform scale-95 transition-transform duration-200" id="modalContent">
+            <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
+                <svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h3 id="modalTitle" class="text-xl font-black text-slate-900 mb-2 tracking-tight">Title</h3>
+            <p id="modalText" class="text-sm font-semibold text-slate-500 mb-8 leading-relaxed">Message goes here</p>
+            <div class="flex gap-3">
+                <button onclick="closeModal()" class="flex-1 py-3.5 rounded-2xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all">Cancel</button>
+                <button id="modalConfirmBtn" class="flex-1 py-3.5 rounded-2xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 active:scale-95 transition-all">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="sticky top-0 z-50 glass-header border-b border-slate-200 p-3 shadow-sm no-print hide-on-capture">
         <div class="max-w-md mx-auto flex justify-between items-center">
             <div>
                 <p class="text-[9px] font-black text-indigo-500 uppercase tracking-widest leading-none mb-1">Grand Total</p>
                 <div id="grandTotal" class="text-2xl font-800 text-slate-900 leading-none tabular-nums">0</div>
             </div>
-            <div class="flex gap-1">
-                <button id="voiceBtn" onclick="toggleVoice()" class="small-btn bg-slate-100 text-slate-600 border border-slate-200">Voice Off</button>
-                <button onclick="copyData()" class="small-btn bg-indigo-600 text-white shadow-sm">Copy</button>
-                <button onclick="shareData()" class="small-btn bg-emerald-600 text-white shadow-sm">Share</button>
-                <button onclick="addGroup()" class="small-btn bg-slate-900 text-white">+ Group</button>
+            <div class="flex flex-wrap justify-end gap-1 max-w-[70%]">
+                <button id="voiceBtn" onclick="toggleVoice()" class="small-btn bg-slate-100 text-slate-600 border border-slate-200">Voice</button>
+                <button onclick="shareAsImage()" class="small-btn bg-blue-500 text-white shadow-sm">Img</button>
+                <button onclick="shareData()" class="small-btn bg-emerald-600 text-white shadow-sm">Text</button>
+                <button onclick="addGroup()" class="small-btn bg-slate-900 text-white">+ Grp</button>
             </div>
         </div>
         <div id="voiceStatus" class="max-w-md mx-auto text-[9px] font-black text-center mt-2 text-indigo-400 uppercase tracking-widest hidden">
             <span class="inline-block w-1.5 h-1.5 bg-red-500 rounded-full animate-ping mr-1"></span>
-            Always Listening... Speak numbers or category names
+            Always Listening...
         </div>
     </div>
 
-    <div class="max-w-md mx-auto p-5">
-        <!-- TIME & DATE -->
-        <div class="flex justify-between items-center mb-6 px-1">
-            <div id="clock" class="text-[11px] font-800 text-slate-400 tabular-nums">00:00:00</div>
-            <div id="date" class="text-[11px] font-800 text-slate-400 uppercase tracking-wider">Loading...</div>
+    <!-- PRINT HEADER (VISIBLE ONLY IN CAPTURE/PRINT) -->
+    <div class="hidden max-w-md mx-auto pt-8 pb-4 px-5 bg-white" id="printHeader">
+        <div class="border-b-2 border-slate-800 pb-3 mb-4">
+            <h2 class="text-xl font-black text-slate-900 uppercase tracking-widest text-center">Inventory Report</h2>
+            <p id="printDate" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 text-center"></p>
         </div>
+        <div class="flex justify-between items-center bg-indigo-50 p-4 rounded-xl mb-4">
+            <span class="text-xs font-black text-indigo-800 uppercase tracking-wider">Total Count</span>
+            <span id="printGrandTotal" class="text-2xl font-black text-indigo-600 tabular-nums">0</span>
+        </div>
+    </div>
 
-        <!-- GROUPS -->
-        <div id="groupsList" class="space-y-4"></div>
+    <div id="tab-counter" class="tab-content active">
+        <div id="captureContent" class="max-w-md mx-auto p-5 bg-white">
+            <!-- TIME & DATE -->
+            <div class="flex justify-between items-center mb-6 px-1">
+                <div id="clock" class="text-[11px] font-800 text-slate-400 tabular-nums">00:00:00</div>
+                <div id="date" class="text-[11px] font-800 text-slate-400 uppercase tracking-wider">Loading...</div>
+            </div>
 
-        <!-- FOOTER INFO -->
-        <div class="mt-10 space-y-6">
-            <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
-                    <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">Counted By</label>
-                    <input id="countedBy" list="nameList" onchange="savePersonnel()" placeholder="Name" class="w-full text-xs font-bold outline-none bg-transparent">
+            <!-- GROUPS -->
+            <div id="groupsList" class="space-y-4 mb-8"></div>
+
+            <!-- FOOTER INFO & SAVE SESSION -->
+            <div class="mt-10 space-y-6 bg-white pb-10 hide-on-capture">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">Counted By</label>
+                        <input id="countedBy" list="nameList" onchange="savePersonnel()" placeholder="Name" class="w-full text-xs font-bold outline-none bg-transparent">
+                    </div>
+                    <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+                        <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">Checked By</label>
+                        <input id="checkedBy" list="nameList" onchange="savePersonnel()" placeholder="Name" class="w-full text-xs font-bold outline-none bg-transparent">
+                    </div>
                 </div>
-                <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
-                    <label class="text-[9px] font-black text-slate-400 uppercase block mb-1">Checked By</label>
-                    <input id="checkedBy" list="nameList" onchange="savePersonnel()" placeholder="Name" class="w-full text-xs font-bold outline-none bg-transparent">
+                <datalist id="nameList"></datalist>
+
+                <!-- SAVE TO HISTORY BUTTON -->
+                <button onclick="finishSession()" class="w-full py-4 rounded-2xl bg-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-200 active:scale-95 transition-transform flex flex-col items-center justify-center gap-1">
+                    <span>Save Session to History</span>
+                    <span class="text-[8px] text-slate-400 normal-case tracking-normal">Clear board and start fresh</span>
+                </button>
+
+                <!-- POSITIVE QUOTE -->
+                <div id="quoteArea" class="p-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] text-white text-center shadow-xl shadow-indigo-100 no-print mt-8">
+                    <p id="quoteBox" class="text-sm font-bold italic leading-relaxed">"Great things never come from comfort zones."</p>
+                    <div class="mt-3 text-[9px] font-black uppercase tracking-[0.3em] opacity-60">- Daily Wisdom</div>
+                </div>
+
+                <div class="text-center mt-8">
+                    <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-loose">
+                        Arvind Kumar Shukla • 9616417485<br>
+                        <button onclick="promptResetApp()" class="text-red-300 mt-2 hover:text-red-500 transition-colors">Wipe Entire App Data</button>
+                    </p>
                 </div>
             </div>
-            <datalist id="nameList"></datalist>
+        </div>
+    </div>
 
-            <!-- POSITIVE QUOTE -->
-            <div id="quoteArea" class="p-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] text-white text-center shadow-xl shadow-indigo-100 no-print">
-                <p id="quoteBox" class="text-sm font-bold italic leading-relaxed">"Great things never come from comfort zones."</p>
-                <div class="mt-3 text-[9px] font-black uppercase tracking-[0.3em] opacity-60">- Daily Wisdom</div>
+    <div id="tab-history" class="tab-content">
+        <div class="max-w-md mx-auto p-5 pb-10">
+            <div class="mb-6 px-1">
+                <h2 class="text-lg font-black text-slate-900 uppercase tracking-widest">Session History</h2>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Your past counting records</p>
             </div>
+            
+            <div id="historyList" class="space-y-4">
+                <!-- History items injected here by JS -->
+            </div>
+            
+            <div id="emptyHistory" class="hidden text-center py-12 px-6 bg-slate-50 rounded-[2rem] border border-slate-200 mt-4">
+                <div class="text-4xl mb-4 opacity-50">📭</div>
+                <h3 class="text-sm font-black text-slate-600 uppercase tracking-widest mb-2">No History Yet</h3>
+                <p class="text-xs font-semibold text-slate-400">Finish your current counting session to save it here.</p>
+            </div>
+        </div>
+    </div>
 
-            <div class="text-center">
-                <p class="text-[9px] text-slate-300 font-bold uppercase tracking-widest leading-loose">
-                    Arvind Kumar Shukla • 9616417485<br>
-                    <button onclick="resetApp()" class="text-red-300 mt-2 hover:text-red-500 transition-colors">Reset Entire App</button>
-                </p>
-            </div>
+    <div class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-xl border-t border-slate-200 z-[100] pb-safe no-print shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <div class="max-w-md mx-auto flex">
+            <button onclick="switchTab('counter')" id="nav-counter" class="nav-item active flex-1 py-4 flex flex-col items-center justify-center gap-1 text-slate-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                <span class="text-[10px] font-black uppercase tracking-widest">Counter</span>
+                <div class="nav-indicator w-1 h-1 bg-indigo-600 rounded-full mt-0.5"></div>
+            </button>
+            <button onclick="switchTab('history')" id="nav-history" class="nav-item flex-1 py-4 flex flex-col items-center justify-center gap-1 text-slate-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span class="text-[10px] font-black uppercase tracking-widest">History</span>
+                <div class="nav-indicator w-1 h-1 bg-indigo-600 rounded-full mt-0.5"></div>
+            </button>
         </div>
     </div>
 
     <!-- TOAST -->
-    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-2xl opacity-0 transition-opacity pointer-events-none z-[100]">
+    <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-2xl opacity-0 transition-opacity pointer-events-none z-[200]">
         Done!
     </div>
 
@@ -133,7 +223,8 @@
             isVoice: false,
             savedNames: ["Arvind Kumar Shukla"],
             countedBy: "",
-            checkedBy: ""
+            checkedBy: "",
+            history: [] // NEW: Array to store past sessions
         };
 
         const quotes = [
@@ -143,22 +234,84 @@
             "Small steps lead to big results.",
             "Success is the sum of small efforts repeated daily.",
             "Believe you can and you're halfway there.",
-            "Quality is not an act, it is a habit.",
-            "Everything is possible for those who believe."
+            "Quality is not an act, it is a habit."
         ];
 
         const wordToNum = { "zero":0, "one":1, "to":2, "two":2, "too":2, "three":3, "tree":3, "the":3, "four":4, "for":4, "five":5, "six":6, "seven":7, "eight":8, "ate":8, "nine":9, "ten":10 };
 
+        // SOUND & HAPTICS
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'add') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.05);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+                if (navigator.vibrate) navigator.vibrate(10);
+            } else if (type === 'remove') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+                if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+            }
+        }
+
+        // CUSTOM MODAL LOGIC
+        let modalCallback = null;
+        function showModal(title, text, onConfirm) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalText').innerText = text;
+            modalCallback = onConfirm;
+            
+            const modal = document.getElementById('customModal');
+            const content = document.getElementById('modalContent');
+            
+            modal.classList.remove('hidden');
+            // Trigger reflow
+            void modal.offsetWidth;
+            
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('customModal');
+            const content = document.getElementById('modalContent');
+            
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modalCallback = null;
+            }, 200);
+        }
+
+        document.getElementById('modalConfirmBtn').addEventListener('click', () => {
+            if (modalCallback) modalCallback();
+            closeModal();
+        });
+
         function init() {
-            // Load previously saved state from localStorage to memorize last counting
             const saved = localStorage.getItem('arvind_cpm_v7');
             if (saved) {
-                try {
-                    state = JSON.parse(saved);
-                    showToast("Restored last session");
-                } catch(e) {
-                    console.error("Failed to load saved state", e);
-                }
+                try { 
+                    const parsed = JSON.parse(saved); 
+                    state = { ...state, ...parsed };
+                    // Ensure history array exists for users migrating from older versions
+                    if(!state.history) state.history = []; 
+                } catch(e) {}
             }
             
             updateClock();
@@ -166,11 +319,24 @@
             document.getElementById('date').innerText = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
             
             render();
+            renderHistory();
             updateNameList();
         }
 
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            document.getElementById(`nav-${tabId}`).classList.add('active');
+            
+            if(tabId === 'history') {
+                renderHistory();
+                window.scrollTo(0,0);
+            }
+        }
+
         function save() {
-            // Save current state to localStorage every time an action is performed
             localStorage.setItem('arvind_cpm_v7', JSON.stringify(state));
             updateNameList();
         }
@@ -218,28 +384,45 @@
                     </div>
                     <div class="flex justify-between items-center mt-3 pt-3 border-t border-slate-100">
                          <button onclick="undo(${idx})" class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Undo</button>
-                         <button onclick="removeGroup(${idx})" class="text-[9px] font-black text-red-300 uppercase tracking-widest">Delete</button>
+                         <button onclick="promptRemoveGroup(${idx})" class="text-[9px] font-black text-red-300 uppercase tracking-widest">Delete</button>
                     </div>
                 `;
                 list.appendChild(el);
             });
 
             document.getElementById('grandTotal').innerText = grandTotal;
+            document.getElementById('printGrandTotal').innerText = grandTotal;
             document.getElementById('countedBy').value = state.countedBy || "";
             document.getElementById('checkedBy').value = state.checkedBy || "";
         }
 
-        // ACTIONS
         function renameGroup(idx, val) { state.groups[idx].name = val || "Untitled"; save(); }
         function manualAdd(idx) {
             const input = document.getElementById(`in-${idx}`);
             const val = parseInt(input.value);
-            if (!isNaN(val)) { state.groups[idx].items.push(val); input.value = ""; save(); render(); }
+            if (!isNaN(val)) { 
+                state.groups[idx].items.push(val); 
+                input.value = ""; 
+                playSound('add');
+                save(); render(); 
+            }
         }
-        function quickPlusOne(idx) { state.groups[idx].items.push(1); save(); render(); }
-        function undo(idx) { state.groups[idx].items.pop(); save(); render(); }
-        function removeItem(gIdx, iIdx) { state.groups[gIdx].items.splice(iIdx, 1); save(); render(); }
-        function removeGroup(idx) { if(confirm("Delete this entire group?")) { state.groups.splice(idx, 1); save(); render(); } }
+        function quickPlusOne(idx) { state.groups[idx].items.push(1); playSound('add'); save(); render(); }
+        function undo(idx) { 
+            if(state.groups[idx].items.length > 0) {
+                state.groups[idx].items.pop(); 
+                playSound('remove');
+                save(); render(); 
+            }
+        }
+        function removeItem(gIdx, iIdx) { state.groups[gIdx].items.splice(iIdx, 1); playSound('remove'); save(); render(); }
+        
+        function promptRemoveGroup(idx) { 
+            showModal("Delete Category?", `Are you sure you want to delete "${state.groups[idx].name}" and all its counts?`, () => {
+                state.groups.splice(idx, 1); save(); render();
+            });
+        }
+        
         function addGroup() { state.groups.push({ id: Date.now(), name: "New Category", items: [] }); state.activeIdx = state.groups.length - 1; save(); render(); }
         
         function updateNameList() {
@@ -253,7 +436,195 @@
             }, 1000);
         }
 
-        // VOICE ENGINE
+        function finishSession() {
+            const currentTotal = parseInt(document.getElementById('grandTotal').innerText);
+            if (currentTotal === 0) {
+                showToast("Cannot save an empty session.");
+                return;
+            }
+
+            showModal("Save to History?", "This will save your current counts to the History tab and clear the board to start a fresh counting session.", () => {
+                // 1. Create a deep copy of current data for history
+                const sessionRecord = {
+                    id: Date.now(),
+                    dateString: new Date().toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }),
+                    total: currentTotal,
+                    countedBy: state.countedBy,
+                    checkedBy: state.checkedBy,
+                    groups: JSON.parse(JSON.stringify(state.groups)) // Deep copy
+                };
+                
+                // 2. Add to beginning of history array
+                state.history.unshift(sessionRecord);
+                
+                // 3. Keep only last 50 records to save localstorage space
+                if(state.history.length > 50) state.history.pop();
+                
+                // 4. Reset current items
+                state.groups.forEach(g => g.items = []);
+                
+                save();
+                render();
+                renderHistory();
+                switchTab('history');
+                showToast("Session Saved & Board Cleared!");
+                playSound('add');
+            });
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            const empty = document.getElementById('emptyHistory');
+            
+            if (state.history.length === 0) {
+                list.innerHTML = "";
+                empty.classList.remove('hidden');
+                return;
+            }
+            
+            empty.classList.add('hidden');
+            list.innerHTML = state.history.map(record => {
+                // Create a small summary of groups that have items
+                const summary = record.groups
+                    .filter(g => g.items.length > 0)
+                    .map(g => `<span class="inline-block bg-slate-100 text-slate-600 text-[9px] px-2 py-1 rounded font-bold mr-1 mb-1">${g.name}: ${g.items.reduce((a,b)=>a+b,0)}</span>`)
+                    .join('');
+
+                return `
+                <div class="card p-5 mb-4 shadow-sm border border-slate-100">
+                    <div class="flex justify-between items-start mb-3 border-b border-slate-100 pb-3">
+                        <div>
+                            <div class="text-xs font-black text-slate-800 mb-1">${record.dateString}</div>
+                            <div class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1 flex flex-wrap gap-2">
+                                <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">BY: ${record.countedBy || 'N/A'}</span>
+                                <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">CHK: ${record.checkedBy || 'N/A'}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[9px] font-black text-indigo-500 uppercase tracking-widest leading-none mb-1">Total</div>
+                            <div class="text-xl font-800 text-slate-900 leading-none tabular-nums">${record.total}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4 flex flex-wrap">
+                        ${summary || '<span class="text-xs text-slate-400 italic">No category details</span>'}
+                    </div>
+                    
+                    <div class="flex gap-2 justify-end pt-3 border-t border-slate-50">
+                        <button onclick="promptDeleteHistory(${record.id})" class="small-btn bg-red-50 text-red-500 hover:bg-red-100 mr-auto shadow-none">Delete</button>
+                        <button onclick="shareHistoryAsText(${record.id})" class="small-btn bg-emerald-600 text-white shadow-sm">Text</button>
+                        <button onclick="shareHistoryAsImage(${record.id})" class="small-btn bg-blue-500 text-white shadow-sm">Img</button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function promptDeleteHistory(id) {
+            showModal("Delete Record?", "Are you sure you want to permanently delete this past session?", () => {
+                state.history = state.history.filter(h => h.id !== id);
+                save();
+                renderHistory();
+                showToast("Record Deleted");
+            });
+        }
+
+        function getHistoryText(id) {
+            const session = state.history.find(h => h.id === id);
+            if(!session) return "";
+            
+            let report = `HISTORY REPORT - ${session.dateString}\n\n`;
+            session.groups.forEach(g => {
+                const total = g.items.reduce((a,b)=>a+b,0);
+                if(total > 0) {
+                    report += `${g.name.toUpperCase()}: ${g.items.join("+")} = ${total}\n`;
+                }
+            });
+            report += `\nGRAND TOTAL: ${session.total}\n`;
+            report += `BY: ${session.countedBy || 'N/A'} | CHECK: ${session.checkedBy || 'N/A'}\n`;
+            return report;
+        }
+
+        function shareHistoryAsText(id) {
+            const text = getHistoryText(id);
+            if (!text) return;
+            
+            if (navigator.share) {
+                navigator.share({ title: 'Past Counter Report', text: text }).catch(()=>{});
+            } else {
+                navigator.clipboard.writeText(text).then(() => showToast("Copied to Clipboard!"));
+            }
+        }
+
+        async function shareHistoryAsImage(id) {
+            const session = state.history.find(h => h.id === id);
+            if(!session) return;
+            showToast("Preparing image...");
+
+            // Create a temporary hidden container specifically styled for the History Image
+            const container = document.createElement('div');
+            container.style.position = 'absolute';
+            container.style.left = '-9999px';
+            container.style.top = '0';
+            container.style.width = '400px';
+            container.style.background = 'white';
+            container.style.padding = '30px';
+            container.style.fontFamily = "'Plus Jakarta Sans', sans-serif";
+            
+            let groupsHtml = session.groups.map(g => {
+                const sum = g.items.reduce((a,b)=>a+b,0);
+                if (sum === 0) return '';
+                return `<div style="display:flex; justify-content:space-between; margin-bottom:12px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
+                            <span style="font-size:14px; font-weight:800; color:#334155;">${g.name}</span>
+                            <span style="font-size:14px; font-weight:800; color:#4f46e5;">${sum}</span>
+                        </div>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div style="border-bottom: 2px solid #1e293b; padding-bottom: 16px; margin-bottom: 20px; text-align: center;">
+                    <h2 style="font-size: 22px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 2px; margin:0;">Inventory Record</h2>
+                    <p style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-top:8px;">${session.dateString}</p>
+                </div>
+                <div style="background: #eef2ff; padding: 20px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <span style="font-size: 14px; font-weight: 900; color: #3730a3; text-transform: uppercase;">Total Count</span>
+                    <span style="font-size: 32px; font-weight: 900; color: #4f46e5;">${session.total}</span>
+                </div>
+                <div style="margin-bottom: 30px;">
+                    ${groupsHtml || '<p style="text-align:center; color:#94a3b8; font-size:12px; font-weight:bold;">No category data recorded.</p>'}
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; background:#f8fafc; padding:12px; border-radius:8px;">
+                    <span>By: ${session.countedBy || 'N/A'}</span>
+                    <span>Chk: ${session.checkedBy || 'N/A'}</span>
+                </div>
+            `;
+            document.body.appendChild(container);
+
+            try {
+                const canvas = await html2canvas(container, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+                document.body.removeChild(container);
+                
+                canvas.toBlob(async (blob) => {
+                    if (!blob) return showToast("Failed to generate image.");
+                    const file = new File([blob], `History_${session.id}.png`, { type: 'image/png' });
+                    
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        try {
+                            await navigator.share({ title: 'Inventory History', text: 'Here is a past inventory record.', files: [file] });
+                            showToast("Shared successfully!");
+                        } catch (e) {
+                            if (e.name !== 'AbortError') downloadImage(canvas.toDataURL('image/png'), `History_${session.id}.png`);
+                        }
+                    } else {
+                        downloadImage(canvas.toDataURL('image/png'), `History_${session.id}.png`);
+                    }
+                }, 'image/png');
+            } catch (err) {
+                document.body.removeChild(container);
+                showToast("Error generating image");
+            }
+        }
+
+
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
         
@@ -292,6 +663,9 @@
         }
 
         function processVoice(text) {
+            // Only process voice if on Counter tab
+            if(!document.getElementById('tab-counter').classList.contains('active')) return;
+
             state.groups.forEach((g, idx) => {
                 if (text === g.name.toLowerCase() || text.includes("switch to " + g.name.toLowerCase())) {
                     state.activeIdx = idx;
@@ -302,9 +676,12 @@
             });
 
             if (text.includes("undo") || text.includes("delete last")) {
-                state.groups[state.activeIdx].items.pop();
-                speak("Removed");
-                save(); render();
+                if(state.groups[state.activeIdx].items.length > 0) {
+                    state.groups[state.activeIdx].items.pop();
+                    playSound('remove');
+                    speak("Removed");
+                    save(); render();
+                }
                 return;
             }
 
@@ -320,6 +697,7 @@
             });
 
             if (found) {
+                playSound('add');
                 const total = state.groups[state.activeIdx].items.reduce((a,b)=>a+b,0);
                 speak("Added. Total " + total);
                 save(); render();
@@ -332,24 +710,85 @@
             window.speechSynthesis.speak(utter);
         }
 
+        async function shareAsImage() {
+            showToast("Preparing image...");
+            const body = document.getElementById('mainBody');
+            const printHeader = document.getElementById('printHeader');
+            const captureContent = document.getElementById('captureContent');
+            
+            document.getElementById('printDate').innerText = new Date().toLocaleString('en-US', { 
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+
+            body.classList.add('capturing-mode');
+            printHeader.classList.remove('hidden');
+            await new Promise(r => setTimeout(r, 200));
+            
+            try {
+                const captureContainer = document.createElement('div');
+                captureContainer.style.background = 'white';
+                captureContainer.style.width = '100%';
+                captureContainer.style.maxWidth = '450px';
+                captureContainer.style.margin = '0 auto';
+                captureContainer.style.padding = '20px';
+                
+                const clonedHeader = printHeader.cloneNode(true);
+                const clonedContent = captureContent.cloneNode(true);
+                
+                const originalInputs = captureContent.querySelectorAll('input');
+                const clonedInputs = clonedContent.querySelectorAll('input');
+                originalInputs.forEach((input, i) => { if (clonedInputs[i]) clonedInputs[i].value = input.value; });
+
+                captureContainer.appendChild(clonedHeader);
+                captureContainer.appendChild(clonedContent);
+                document.body.appendChild(captureContainer);
+
+                const canvas = await html2canvas(captureContainer, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 450 });
+                
+                document.body.removeChild(captureContainer);
+                body.classList.remove('capturing-mode');
+                printHeader.classList.add('hidden');
+                
+                canvas.toBlob(async (blob) => {
+                    if (!blob) return showToast("Failed to generate image.");
+                    const file = new File([blob], `Inventory_Report_${Date.now()}.png`, { type: 'image/png' });
+                    
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        try {
+                            await navigator.share({ title: 'Inventory Report', text: 'Here is the latest inventory count.', files: [file] });
+                            showToast("Shared successfully!");
+                        } catch (e) {
+                            if (e.name !== 'AbortError') downloadImage(canvas.toDataURL('image/png'), `Inventory_Report_${Date.now()}.png`);
+                        }
+                    } else {
+                        downloadImage(canvas.toDataURL('image/png'), `Inventory_Report_${Date.now()}.png`);
+                    }
+                }, 'image/png');
+            } catch (err) {
+                body.classList.remove('capturing-mode');
+                printHeader.classList.add('hidden');
+                showToast("Error generating image");
+            }
+        }
+
+        function downloadImage(dataUrl, filename) {
+            const link = document.createElement('a');
+            link.download = filename || `Report_${Date.now()}.png`;
+            link.href = dataUrl;
+            link.click();
+            showToast("Image Downloaded!");
+        }
+
         function getReportText() {
-            let report = `COUNTER REPORT - ${new Date().toLocaleDateString()}\n\n`;
+            let report = `CURRENT REPORT - ${new Date().toLocaleDateString()}\n\n`;
             state.groups.forEach(g => {
                 const total = g.items.reduce((a,b)=>a+b,0);
                 report += `${g.name.toUpperCase()}: ${g.items.join("+") || 0} = ${total}\n`;
             });
             report += `\nGRAND TOTAL: ${document.getElementById('grandTotal').innerText}\n`;
             report += `BY: ${state.countedBy || 'N/A'} | CHECK: ${state.checkedBy || 'N/A'}\n\n`;
-            
-            // Add the current quote to the shared report
-            const currentQuote = document.getElementById('quoteBox').innerText;
-            report += `Daily Wisdom: ${currentQuote}`;
-            
+            report += `Daily Wisdom: ${document.getElementById('quoteBox').innerText}`;
             return report;
-        }
-
-        function copyData() {
-            navigator.clipboard.writeText(getReportText()).then(() => showToast("Copied!"));
         }
 
         function shareData() {
@@ -357,7 +796,7 @@
             if (navigator.share) {
                 navigator.share({ title: 'Counter Report', text: text }).catch(()=>{});
             } else {
-                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+                navigator.clipboard.writeText(text).then(() => showToast("Copied to Clipboard!"));
             }
         }
 
@@ -365,14 +804,14 @@
             const t = document.getElementById('toast');
             t.innerText = msg;
             t.style.opacity = '1';
-            setTimeout(() => t.style.opacity = '0', 2000);
+            setTimeout(() => t.style.opacity = '0', 2500);
         }
 
-        function resetApp() {
-            if(confirm("Wipe all data?")) {
+        function promptResetApp() {
+            showModal("Wipe All Data?", "This will permanently delete all your custom categories, current counts, and all saved session history. This action cannot be undone.", () => {
                 localStorage.removeItem('arvind_cpm_v7');
                 location.reload();
-            }
+            });
         }
 
         window.onload = init;
